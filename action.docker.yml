@@ -1,0 +1,9 @@
+name: 'Report status in issue'
+description: 'Report status of a workflow run into a GitHub issue'
+inputs:
+  github-token:
+    description: 'GitHub token'
+    required: false
+runs:
+  using: 'docker'
+  image: 'docker://ghcr.io/quarkusio/report-status-in-issue:main'
