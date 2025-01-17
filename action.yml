@@ -7,6 +7,21 @@ inputs:
   action:
     description: 'Name of the action (if named)'
     required: false
+  status:
+    description: 'Status of the CI run'
+    required: true
+  issue-repository:
+    description: 'The repository where the issue resides (e.g. quarkusio/quarkus)'
+    required: true
+  issue-number:
+    description: 'The issue to update'
+    required: true
+  repository:
+    description: 'The repository for which we are reporting the CI status (by default, the repository running the action)'
+    required: false
+  run-id:
+    description: 'The ID of the Github Action run for which we are reporting the CI status (by default, the run id of the current run)'
+    required: false
 
 runs:
   using: "composite"
@@ -37,7 +52,7 @@ runs:
       uses: jbangdev/setup-jbang@main
     - name: Run the action
       id: action
-      run: jbang --java 17 --fresh --repos 'quarkus-github-action=https://maven.pkg.github.com/quarkusio/report-status-in-issue/' --repos 'mavencentral' io.quarkus.bot:report-status-in-issue:999-SNAPSHOT
+      run: jbang --java 21 --fresh --repos 'quarkus-github-action=https://maven.pkg.github.com/quarkusio/report-status-in-issue/' --repos 'mavencentral' io.quarkus.bot:report-status-in-issue:999-SNAPSHOT
       shell: bash
       env:
         JSON_INPUTS: ${{ toJSON(inputs) }}
