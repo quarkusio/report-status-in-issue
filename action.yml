@@ -48,11 +48,12 @@ runs:
         </settings>
         EOF
         fi
+        cat ~/.m2/settings.xml
     - name: Set up JBang
       uses: jbangdev/setup-jbang@main
     - name: Run the action
       id: action
-      run: jbang --java 21 --fresh --repos 'quarkus-github-action=https://maven.pkg.github.com/quarkusio/report-status-in-issue/' --repos 'mavencentral' io.quarkus.bot:report-status-in-issue:999-SNAPSHOT
+      run: jbang --verbose --java 21 --fresh --repos 'quarkus-github-action=https://maven.pkg.github.com/quarkusio/report-status-in-issue/' --repos 'mavencentral' io.quarkus.bot:report-status-in-issue:999-SNAPSHOT
       shell: bash
       env:
         JSON_INPUTS: ${{ toJSON(inputs) }}
