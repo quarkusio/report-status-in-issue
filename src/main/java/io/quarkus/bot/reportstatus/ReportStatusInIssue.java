@@ -2,8 +2,12 @@ package io.quarkus.bot.reportstatus;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.jboss.logging.Logger;
 import org.kohsuke.github.GHIssue;
 import org.kohsuke.github.GHIssueComment;
 import org.kohsuke.github.GHIssueState;
@@ -22,9 +26,11 @@ import io.quarkiverse.githubaction.Inputs;
 
 public class ReportStatusInIssue {
 
+    private static final Logger LOG = Logger.getLogger(ReportStatusInIssue.class);
+
     private static final String STATUS_MARKER = "<!-- status.quarkus.io/status:";
     private static final String END_OF_MARKER = "-->";
-    private static final Pattern STATUS_PATTERN = Pattern.compile(STATUS_MARKER + "(.*?)" + END_OF_MARKER,
+    private static final Pattern STATUS_PATTERN = Pattern.compile(STATUS_MARKER + "\r?\n(.*?)\r?\n" + END_OF_MARKER,
             Pattern.DOTALL);
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper(new YAMLFactory());
@@ -62,8 +68,19 @@ public class ReportStatusInIssue {
             commands.notice(String.format("The issue is currently %s", issue.getState().toString()));
         }
 
+        Status existingStatus = extractStatus(issue.getBody());
+        State newState = new State(Instant.now(), context.getGitHubSha(), inputs.get(InputKeys.QUARKUS_SHA).orElse(null));
+
+        final State firstFailure;
+        final State lastFailure;
+        final State lastSuccess;
+
         if (succeed) {
-            if (issue != null && isOpen(issue)) {
+            firstFailure = null;
+            lastFailure = null;
+            lastSuccess = newState;
+
+            if (isOpen(issue)) {
                 // close issue with a comment
                 final GHIssueComment comment = issue.comment(
                         String.format("Build fixed:\n* Link to latest CI run: https://github.com/%s/actions/runs/%s",
@@ -71,16 +88,19 @@ public class ReportStatusInIssue {
                 issue.close();
                 commands.notice(String.format("Comment added on issue %s - %s, the issue has also been closed",
                         issue.getHtmlUrl().toString(), comment.getHtmlUrl().toString()));
-            } else {
-                System.out.println("Nothing to do - the build passed and the issue is already closed");
             }
         } else {
+            lastSuccess = State.KEEP_EXISTING;
+            lastFailure = newState;
+
             if (isOpen(issue)) {
                 final GHIssueComment comment = issue.comment(String.format(
                         "The build is still failing:\n* Link to latest CI run: https://github.com/%s/actions/runs/%s",
                         repositoryName, runId));
                 commands.notice(String.format("Comment added on issue %s - %s", issue.getHtmlUrl().toString(),
                         comment.getHtmlUrl().toString()));
+
+                firstFailure = State.KEEP_EXISTING;
             } else {
                 issue.reopen();
                 final GHIssueComment comment = issue.comment(String.format(
@@ -88,10 +108,23 @@ public class ReportStatusInIssue {
                         repositoryName, runId));
                 commands.notice(String.format("Comment added on issue %s - %s, the issue has been re-opened",
                         issue.getHtmlUrl().toString(), comment.getHtmlUrl().toString()));
+
+                firstFailure = newState;
             }
         }
 
-        issue.setBody(appendStatusInformation(issue.getBody(), new Status(Instant.now(), !succeed, repositoryName, runId)));
+        Status newStatus;
+        if (existingStatus != null) {
+            newStatus = new Status(Instant.now(), !succeed, repositoryName, runId,
+                    firstFailure == State.KEEP_EXISTING ? existingStatus.firstFailure() : firstFailure,
+                    lastFailure == State.KEEP_EXISTING ? existingStatus.lastFailure() : lastFailure,
+                    lastSuccess == State.KEEP_EXISTING ? existingStatus.lastSuccess() : lastSuccess);
+        } else {
+            newStatus = new Status(Instant.now(), !succeed, repositoryName, runId,
+                    firstFailure, lastFailure, lastSuccess);
+        }
+
+        issue.setBody(appendStatusInformation(issue.getBody(), newStatus));
     }
 
     private static boolean isOpen(GHIssue issue) {
@@ -112,6 +145,33 @@ public class ReportStatusInIssue {
         }
     }
 
-    public record Status(Instant updatedAt, boolean failure, String repository, Long runId) {
-    };
+    public Status extractStatus(String body) {
+        if (body == null || body.isBlank()) {
+            return null;
+        }
+
+        Matcher matcher = STATUS_PATTERN.matcher(body);
+        if (!matcher.find()) {
+            return null;
+        }
+
+        try {
+            return OBJECT_MAPPER.readValue(matcher.group(1), Status.class);
+        } catch (Exception e) {
+            LOG.warn("Unable to extract Status from issue body", e);
+            return null;
+        }
+    }
+
+    public record Status(Instant updatedAt, boolean failure, String repository, Long runId,
+                         State firstFailure, State lastFailure, State lastSuccess) {
+    }
+
+    public record State(Instant date, String quarkusSha, String projectSha) {
+
+        /**
+         * Sentinel value to keep the existing value.
+         */
+        private static final State KEEP_EXISTING = new State(null, null, null);
+    }
 }
