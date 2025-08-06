@@ -22,6 +22,9 @@ inputs:
   run-id:
     description: 'The ID of the Github Action run for which we are reporting the CI status (by default, the run id of the current run)'
     required: false
+  quarkus-sha:
+    description: 'The Git sha of the Quarkus build used to run the tests'
+    required: false
 
 runs:
   using: "composite"

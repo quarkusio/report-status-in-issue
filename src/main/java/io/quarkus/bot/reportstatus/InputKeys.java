@@ -10,4 +10,5 @@ public final class InputKeys {
     static final String ISSUE_NUMBER = "issue-number";
     static final String REPOSITORY = "repository";
     static final String RUN_ID = "run-id";
+    static final String QUARKUS_SHA = "quarkus-sha";
 }
