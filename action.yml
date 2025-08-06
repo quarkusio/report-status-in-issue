@@ -25,6 +25,9 @@ inputs:
   quarkus-sha:
     description: 'The Git sha of the Quarkus build used to run the tests'
     required: false
+  project-sha:
+    description: 'The Git sha of the project currently under test'
+    required: false
 
 runs:
   using: "composite"

@@ -68,8 +68,10 @@ public class ReportStatusInIssue {
             commands.notice(String.format("The issue is currently %s", issue.getState().toString()));
         }
 
+        String quarkusSha = inputs.get(InputKeys.QUARKUS_SHA).orElse(null);
+        String projectSha = inputs.get(InputKeys.PROJECT_SHA).orElse(null);
         Status existingStatus = extractStatus(issue.getBody());
-        State newState = new State(Instant.now(), context.getGitHubSha(), inputs.get(InputKeys.QUARKUS_SHA).orElse(null));
+        State newState = new State(Instant.now(), quarkusSha, projectSha);
 
         final State firstFailure;
         final State lastFailure;
@@ -100,7 +102,8 @@ public class ReportStatusInIssue {
                 commands.notice(String.format("Comment added on issue %s - %s", issue.getHtmlUrl().toString(),
                         comment.getHtmlUrl().toString()));
 
-                firstFailure = State.KEEP_EXISTING;
+                // for old reports, we won't have the first failure previously set so let's set it to the new state as an approximation
+                firstFailure = existingStatus.firstFailure() != null ? State.KEEP_EXISTING : newState;
             } else {
                 issue.reopen();
                 final GHIssueComment comment = issue.comment(String.format(
@@ -115,12 +118,12 @@ public class ReportStatusInIssue {
 
         Status newStatus;
         if (existingStatus != null) {
-            newStatus = new Status(Instant.now(), !succeed, repositoryName, runId,
+            newStatus = new Status(Instant.now(), !succeed, repositoryName, runId, quarkusSha, projectSha,
                     firstFailure == State.KEEP_EXISTING ? existingStatus.firstFailure() : firstFailure,
                     lastFailure == State.KEEP_EXISTING ? existingStatus.lastFailure() : lastFailure,
                     lastSuccess == State.KEEP_EXISTING ? existingStatus.lastSuccess() : lastSuccess);
         } else {
-            newStatus = new Status(Instant.now(), !succeed, repositoryName, runId,
+            newStatus = new Status(Instant.now(), !succeed, repositoryName, runId, quarkusSha, projectSha,
                     firstFailure, lastFailure, lastSuccess);
         }
 
@@ -164,7 +167,7 @@ public class ReportStatusInIssue {
     }
 
     public record Status(Instant updatedAt, boolean failure, String repository, Long runId,
-                         State firstFailure, State lastFailure, State lastSuccess) {
+             String quarkusSha, String projectSha, State firstFailure, State lastFailure, State lastSuccess) {
     }
 
     public record State(Instant date, String quarkusSha, String projectSha) {
