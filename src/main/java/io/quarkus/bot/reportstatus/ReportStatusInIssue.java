@@ -103,7 +103,7 @@ public class ReportStatusInIssue {
                         comment.getHtmlUrl().toString()));
 
                 // for old reports, we won't have the first failure previously set so let's set it to the new state as an approximation
-                firstFailure = existingStatus.firstFailure() != null ? State.KEEP_EXISTING : newState;
+                firstFailure = existingStatus != null && existingStatus.firstFailure() != null ? State.KEEP_EXISTING : newState;
             } else {
                 issue.reopen();
                 final GHIssueComment comment = issue.comment(String.format(
